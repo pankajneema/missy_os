@@ -1,0 +1,15 @@
+from app.models.assistant_profile import AssistantProfile
+from app.models.conversation import Conversation
+from app.models.llm_credential import LLMCredential, LLMProvider
+from app.models.message import Message, MessageRole
+from app.models.user import User
+
+__all__ = [
+    "User",
+    "AssistantProfile",
+    "LLMCredential",
+    "LLMProvider",
+    "Conversation",
+    "Message",
+    "MessageRole",
+]

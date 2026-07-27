@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: missy_os_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: missy
+      POSTGRES_PASSWORD: missy
+      POSTGRES_DB: missy_os
+    ports:
+      - "5433:5432"
+    volumes:
+      - missy_os_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U missy -d missy_os"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  missy_os_pgdata:
