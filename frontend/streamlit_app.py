@@ -1,7 +1,7 @@
 import streamlit as st
 
 import session
-from views import auth_view, chat_view, onboarding_view, settings_view
+from views import auth_view, chat_view, knowledge_view, onboarding_view, settings_view
 
 st.set_page_config(page_title="Missy", page_icon="🤖", layout="centered")
 session.init_session_state()
@@ -17,7 +17,7 @@ else:
             st.caption(f"Signed in as {st.session_state['username']}")
 
         page = st.radio(
-            "Navigate", ["💬  Chat", "⚙️  Settings"], label_visibility="collapsed"
+            "Navigate", ["💬  Chat", "📚  Knowledge Base", "⚙️  Settings"], label_visibility="collapsed"
         )
 
         st.divider()
@@ -27,5 +27,7 @@ else:
 
     if "Chat" in page:
         chat_view.render()
+    elif "Knowledge" in page:
+        knowledge_view.render()
     else:
         settings_view.render()

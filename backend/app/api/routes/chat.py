@@ -1,14 +1,17 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
+from app.models.llm_credential import LLMProvider
 from app.models.user import User
-from app.schemas.chat import ConversationResponse, MessageResponse, SendMessageRequest
+from app.schemas.chat import ConversationResponse, MessageResponse
 from app.services import chat_service
 
 router = APIRouter(prefix="/conversations", tags=["chat"])
+
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10MB - generous for a single image/doc, not a file store
 
 
 @router.get("", response_model=list[ConversationResponse])
@@ -36,11 +39,42 @@ def get_messages(
 
 
 @router.post("/{conversation_id}/messages", response_model=MessageResponse)
-def send_message(
+async def send_message(
     conversation_id: uuid.UUID,
-    payload: SendMessageRequest,
+    content: str = Form(...),
+    provider: LLMProvider = Form(...),
+    use_knowledge_base: bool = Form(default=False),
+    image: UploadFile | None = File(default=None),
+    document: UploadFile | None = File(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> MessageResponse:
-    reply = chat_service.send_message(db, current_user.id, conversation_id, payload.content, payload.provider)
+    image_bytes = None
+    image_content_type = None
+    if image is not None:
+        image_bytes = await image.read()
+        if len(image_bytes) > _MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image is too large (max 10MB).")
+        image_content_type = image.content_type or "image/png"
+
+    document_bytes = None
+    document_filename = None
+    if document is not None:
+        document_bytes = await document.read()
+        if len(document_bytes) > _MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document is too large (max 10MB).")
+        document_filename = document.filename or "document"
+
+    reply = chat_service.send_message(
+        db,
+        current_user.id,
+        conversation_id,
+        content,
+        provider,
+        image_bytes=image_bytes,
+        image_content_type=image_content_type,
+        document_filename=document_filename,
+        document_bytes=document_bytes,
+        use_knowledge_base=use_knowledge_base,
+    )
     return MessageResponse.model_validate(reply)

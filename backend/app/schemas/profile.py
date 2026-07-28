@@ -6,6 +6,7 @@ class ProfileUpsertRequest(BaseModel):
     persona_description: str = Field(min_length=1, max_length=2000)
     user_about_me: str = Field(min_length=1, max_length=2000)
     tone_preference: str | None = Field(default=None, max_length=64)
+    response_language: str = Field(default="English", min_length=1, max_length=64)
 
 
 class ProfileResponse(BaseModel):
@@ -13,5 +14,6 @@ class ProfileResponse(BaseModel):
     persona_description: str
     user_about_me: str
     tone_preference: str | None
+    response_language: str
 
     model_config = {"from_attributes": True}

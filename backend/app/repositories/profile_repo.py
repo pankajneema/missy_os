@@ -17,6 +17,7 @@ def upsert(
     persona_description: str,
     user_about_me: str,
     tone_preference: str | None,
+    response_language: str,
 ) -> AssistantProfile:
     profile = get_by_user_id(db, user_id)
     if profile is None:
@@ -27,6 +28,7 @@ def upsert(
     profile.persona_description = persona_description
     profile.user_about_me = user_about_me
     profile.tone_preference = tone_preference
+    profile.response_language = response_language
 
     db.commit()
     db.refresh(profile)

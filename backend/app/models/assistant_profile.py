@@ -17,5 +17,6 @@ class AssistantProfile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     persona_description: Mapped[str] = mapped_column(Text, nullable=False)
     user_about_me: Mapped[str] = mapped_column(Text, nullable=False)
     tone_preference: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    response_language: Mapped[str] = mapped_column(String(64), nullable=False, server_default="English")
 
     user: Mapped["User"] = relationship(back_populates="profile")

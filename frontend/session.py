@@ -6,6 +6,8 @@ def init_session_state() -> None:
     st.session_state.setdefault("username", None)
     st.session_state.setdefault("has_profile", False)
     st.session_state.setdefault("active_conversation_id", None)
+    st.session_state.setdefault("assistant_name", None)
+    st.session_state.setdefault("response_language", None)
 
 
 def is_authenticated() -> bool:
@@ -23,6 +25,8 @@ def logout() -> None:
     st.session_state["username"] = None
     st.session_state["has_profile"] = False
     st.session_state["active_conversation_id"] = None
+    st.session_state["assistant_name"] = None
+    st.session_state["response_language"] = None
 
 
 def get_token() -> str | None:

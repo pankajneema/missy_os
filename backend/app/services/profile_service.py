@@ -17,6 +17,7 @@ def save_profile(
     persona_description: str,
     user_about_me: str,
     tone_preference: str | None,
+    response_language: str,
 ) -> AssistantProfile:
     return profile_repo.upsert(
         db,
@@ -25,4 +26,5 @@ def save_profile(
         persona_description=persona_description,
         user_about_me=user_about_me,
         tone_preference=tone_preference,
+        response_language=response_language,
     )

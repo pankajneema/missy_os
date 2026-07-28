@@ -51,4 +51,11 @@ def render() -> None:
 def _complete_login(access_token: str) -> None:
     me = api_client.get_me(access_token)
     session.login(access_token, me["username"], me["has_profile"])
+
+    if me["has_profile"]:
+        profile = api_client.get_profile(access_token)
+        if profile:
+            st.session_state["assistant_name"] = profile["assistant_name"]
+            st.session_state["response_language"] = profile["response_language"]
+
     st.rerun()

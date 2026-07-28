@@ -30,5 +30,6 @@ def save_profile(
         persona_description=payload.persona_description,
         user_about_me=payload.user_about_me,
         tone_preference=payload.tone_preference,
+        response_language=payload.response_language,
     )
     return ProfileResponse.model_validate(profile)
