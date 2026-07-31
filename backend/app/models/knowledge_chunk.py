@@ -1,8 +1,8 @@
 import uuid
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, Integer, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Computed, ForeignKey, Integer, Text
+from sqlalchemy.dialects.postgresql import TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -20,5 +20,10 @@ class KnowledgeChunk(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    # Postgres-generated column (populated automatically from `content`) -
+    # this is the keyword-search half of hybrid search, alongside `embedding`.
+    content_tsv: Mapped[str] = mapped_column(
+        TSVECTOR, Computed("to_tsvector('english', content)", persisted=True), nullable=True
+    )
 
     source: Mapped["KnowledgeSource"] = relationship(back_populates="chunks")

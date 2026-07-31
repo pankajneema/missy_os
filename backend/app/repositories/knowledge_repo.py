@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.knowledge_chunk import KnowledgeChunk
@@ -74,6 +74,7 @@ def has_ready_sources(db: Session, user_id: uuid.UUID) -> bool:
 
 
 def search_chunks(db: Session, user_id: uuid.UUID, query_embedding: list[float], top_k: int) -> list[KnowledgeChunk]:
+    """Semantic half of hybrid search - nearest neighbors by embedding cosine distance."""
     return list(
         db.scalars(
             select(KnowledgeChunk)
@@ -81,6 +82,27 @@ def search_chunks(db: Session, user_id: uuid.UUID, query_embedding: list[float],
             .where(KnowledgeSource.user_id == user_id, KnowledgeSource.status == SourceStatus.ready)
             .options(selectinload(KnowledgeChunk.source))
             .order_by(KnowledgeChunk.embedding.cosine_distance(query_embedding))
+            .limit(top_k)
+        )
+    )
+
+
+def keyword_search_chunks(db: Session, user_id: uuid.UUID, query: str, top_k: int) -> list[KnowledgeChunk]:
+    """Lexical half of hybrid search - Postgres full-text search, ranked by
+    ts_rank. Catches exact terms (names, codenames, jargon) that a purely
+    semantic embedding match can rank low or miss entirely."""
+    tsquery = func.plainto_tsquery("english", query)
+    return list(
+        db.scalars(
+            select(KnowledgeChunk)
+            .join(KnowledgeSource, KnowledgeChunk.source_id == KnowledgeSource.id)
+            .where(
+                KnowledgeSource.user_id == user_id,
+                KnowledgeSource.status == SourceStatus.ready,
+                KnowledgeChunk.content_tsv.op("@@")(tsquery),
+            )
+            .options(selectinload(KnowledgeChunk.source))
+            .order_by(func.ts_rank(KnowledgeChunk.content_tsv, tsquery).desc())
             .limit(top_k)
         )
     )
