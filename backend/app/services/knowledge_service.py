@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from app.ai.chunking import split_text
 from app.ai.documents import extract_text
 from app.ai.embeddings import embed_text, embed_texts
+from app.ai.fusion import reciprocal_rank_fusion
+from app.ai.reranking import rerank
 from app.ai.web import fetch_page
 from app.models.knowledge_chunk import KnowledgeChunk
 from app.models.knowledge_source import KnowledgeSource, SourceType
