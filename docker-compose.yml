@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: missy
       POSTGRES_DB: missy_os
     ports:
-      - "5433:5432"
+      - "5439:5432"
     volumes:
       - missy_os_pgdata:/var/lib/postgresql/data
     healthcheck:

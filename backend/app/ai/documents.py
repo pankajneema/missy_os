@@ -1,8 +1,16 @@
 import io
 
 import docx
+import pymupdf
+import pytesseract
 from fastapi import HTTPException, status
+from PIL import Image
 from pypdf import PdfReader
+
+# Below this many characters, a pypdf extraction is treated as "no real text
+# layer" (stray whitespace/artifacts, not an actual scanned page of content)
+# and we fall back to OCR instead of returning near-nothing.
+_MIN_TEXT_LAYER_CHARS = 20
 
 # Only used by the V1 "attach a document to one chat turn" flow - keeps it
 # inside typical context windows. Knowledge-base ingestion (V2) never
@@ -39,7 +47,23 @@ def truncate_for_single_turn(text: str) -> str:
 
 def _extract_pdf(content: bytes) -> str:
     reader = PdfReader(io.BytesIO(content))
-    return "\n\n".join(page.extract_text() or "" for page in reader.pages)
+    text = "\n\n".join(page.extract_text() or "" for page in reader.pages)
+
+    if len(text.strip()) < _MIN_TEXT_LAYER_CHARS:
+        return _ocr_pdf(content)
+    return text
+
+
+def _ocr_pdf(content: bytes) -> str:
+    """Scanned/photographed PDFs have no embedded text layer for pypdf to
+    read - render each page to an image and read it with Tesseract instead."""
+    pages_text = []
+    with pymupdf.open(stream=content, filetype="pdf") as pdf:
+        for page in pdf:
+            pixmap = page.get_pixmap(dpi=300)
+            image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+            pages_text.append(pytesseract.image_to_string(image))
+    return "\n\n".join(pages_text)
 
 
 def _extract_docx(content: bytes) -> str:

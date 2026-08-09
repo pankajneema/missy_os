@@ -77,9 +77,21 @@ def delete_source(db: Session, user_id: uuid.UUID, source_id: uuid.UUID) -> None
     knowledge_repo.delete_source(db, source)
 
 
+_CANDIDATE_POOL_SIZE = 20  # how many each retrieval method contributes before fusion + reranking narrow it down
+
+
 def search(db: Session, user_id: uuid.UUID, query: str, top_k: int = 5) -> list[KnowledgeChunk]:
+    """Hybrid search: vector similarity + keyword full-text search, merged via
+    Reciprocal Rank Fusion, then precision-reranked with a cross-encoder.
+    Pure vector search alone can miss exact terms (names, codenames, jargon)
+    that don't embed distinctively - keyword search catches those; RRF makes
+    sure a chunk strong in both signals wins over one strong in only one."""
     query_embedding = embed_text(query)
-    return knowledge_repo.search_chunks(db, user_id, query_embedding, top_k)
+    vector_results = knowledge_repo.search_chunks(db, user_id, query_embedding, _CANDIDATE_POOL_SIZE)
+    keyword_results = knowledge_repo.keyword_search_chunks(db, user_id, query, _CANDIDATE_POOL_SIZE)
+
+    fused = reciprocal_rank_fusion(vector_results, keyword_results)
+    return rerank(query, fused[:_CANDIDATE_POOL_SIZE], top_k)
 
 
 def has_ready_sources(db: Session, user_id: uuid.UUID) -> bool:

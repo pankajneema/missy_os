@@ -28,9 +28,7 @@ def _is_image(filename: str) -> bool:
     return filename.rsplit(".", 1)[-1].lower() in _IMAGE_EXTS
 
 
-def _send_and_show(
-    token: str, conversation_id: str, provider: str, content: str, attached_file, use_knowledge_base: bool
-) -> bool:
+def _send_and_show(token: str, conversation_id: str, provider: str, content: str, attached_file) -> bool:
     """Renders the user's turn, calls the backend, renders the reply. Returns
     True on success (caller should rerun to reset attachment widgets)."""
     image_file = attached_file if attached_file and _is_image(attached_file.name) else None
@@ -55,7 +53,6 @@ def _send_and_show(
                     provider,
                     image=image_arg,
                     document=document_arg,
-                    use_knowledge_base=use_knowledge_base,
                 )
                 st.markdown(reply["content"])
             except api_client.ApiError as exc:
@@ -69,16 +66,23 @@ def render() -> None:
     st.title(f"Chat with {st.session_state.get('assistant_name', 'Missy')}")
 
     try:
-        providers = api_client.list_providers(token)
+        all_providers = api_client.list_providers(token)
     except api_client.ApiError as exc:
         st.error(str(exc))
         return
 
+    providers = [p for p in all_providers if not p["is_revoked"]]
+
+    if not all_providers:
+        st.info("No LLM provider connected yet - head to **API Connections** to add one before chatting.")
+        return
     if not providers:
-        st.info("No LLM provider configured yet - head to **Settings** to add one before chatting.")
+        st.info("All your connections are revoked - head to **API Connections** to unrevoke one or add a new one.")
         return
 
-    labels = [f"{_PROVIDER_LABELS.get(p['provider'], p['provider'])} · {p['model_name']}" for p in providers]
+    labels = [
+        f"{p['name'] or _PROVIDER_LABELS.get(p['provider'], p['provider'])} · {p['model_name']}" for p in providers
+    ]
     default_index = next((i for i, p in enumerate(providers) if p["is_active"]), 0)
 
     _, picker_col = st.columns([2, 1])
@@ -91,15 +95,6 @@ def render() -> None:
             label_visibility="collapsed",
         )
     selected_provider = providers[selected_index]["provider"]
-
-    try:
-        knowledge_sources = api_client.list_knowledge_sources(token)
-    except api_client.ApiError:
-        knowledge_sources = []
-    has_ready_knowledge = any(s["status"] == "ready" for s in knowledge_sources)
-    use_knowledge_base = False
-    if has_ready_knowledge:
-        use_knowledge_base = st.checkbox("🔎 Search my knowledge base", key="use_kb_checkbox")
 
     try:
         conversation = _get_primary_conversation(token)
@@ -169,7 +164,7 @@ def render() -> None:
                 _bump_attachment_version()
                 st.rerun()
         if transcribed.strip():
-            if _send_and_show(token, conversation["id"], selected_provider, transcribed, None, use_knowledge_base):
+            if _send_and_show(token, conversation["id"], selected_provider, transcribed, None):
                 _bump_attachment_version()
                 st.rerun()
         else:
@@ -179,8 +174,6 @@ def render() -> None:
 
     user_input = st.chat_input("Message Missy...")
     if user_input:
-        if _send_and_show(
-            token, conversation["id"], selected_provider, user_input, attached_file, use_knowledge_base
-        ):
+        if _send_and_show(token, conversation["id"], selected_provider, user_input, attached_file):
             _bump_attachment_version()
             st.rerun()

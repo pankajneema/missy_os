@@ -19,7 +19,12 @@ def get_by_user_and_provider(db: Session, user_id: uuid.UUID, provider: LLMProvi
 
 
 def upsert(
-    db: Session, user_id: uuid.UUID, provider: LLMProvider, encrypted_api_key: str, model_name: str
+    db: Session,
+    user_id: uuid.UUID,
+    provider: LLMProvider,
+    encrypted_api_key: str,
+    model_name: str,
+    name: str | None,
 ) -> LLMCredential:
     """Save or update a provider's credentials. Every saved provider is usable from
     the chat model picker - saving one does not affect any other provider."""
@@ -30,7 +35,18 @@ def upsert(
 
     credential.encrypted_api_key = encrypted_api_key
     credential.model_name = model_name
+    credential.name = name
 
+    db.commit()
+    db.refresh(credential)
+    return credential
+
+
+def set_revoked(db: Session, user_id: uuid.UUID, provider: LLMProvider, revoked: bool) -> LLMCredential | None:
+    credential = get_by_user_and_provider(db, user_id, provider)
+    if credential is None:
+        return None
+    credential.is_revoked = revoked
     db.commit()
     db.refresh(credential)
     return credential

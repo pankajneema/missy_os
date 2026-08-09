@@ -7,6 +7,8 @@ from app.models import (  # noqa: F401
     KnowledgeChunk,
     KnowledgeSource,
     LLMCredential,
+    MCPServer,
+    MemoryEntry,
     Message,
     User,
 )

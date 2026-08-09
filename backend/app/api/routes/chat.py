@@ -43,7 +43,6 @@ async def send_message(
     conversation_id: uuid.UUID,
     content: str = Form(...),
     provider: LLMProvider = Form(...),
-    use_knowledge_base: bool = Form(default=False),
     image: UploadFile | None = File(default=None),
     document: UploadFile | None = File(default=None),
     current_user: User = Depends(get_current_user),
@@ -65,7 +64,7 @@ async def send_message(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document is too large (max 10MB).")
         document_filename = document.filename or "document"
 
-    reply = chat_service.send_message(
+    reply = await chat_service.send_message(
         db,
         current_user.id,
         conversation_id,
@@ -75,6 +74,5 @@ async def send_message(
         image_content_type=image_content_type,
         document_filename=document_filename,
         document_bytes=document_bytes,
-        use_knowledge_base=use_knowledge_base,
     )
     return MessageResponse.model_validate(reply)

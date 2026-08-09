@@ -1,7 +1,16 @@
 import streamlit as st
 
 import session
-from views import auth_view, chat_view, knowledge_view, onboarding_view, settings_view
+from views import (
+    api_connections_view,
+    auth_view,
+    chat_view,
+    knowledge_view,
+    mcp_servers_view,
+    memory_view,
+    onboarding_view,
+    settings_view,
+)
 
 st.set_page_config(page_title="Missy", page_icon="🤖", layout="centered")
 session.init_session_state()
@@ -17,7 +26,9 @@ else:
             st.caption(f"Signed in as {st.session_state['username']}")
 
         page = st.radio(
-            "Navigate", ["💬  Chat", "📚  Knowledge Base", "⚙️  Settings"], label_visibility="collapsed"
+            "Navigate",
+            ["💬  Chat", "📚  Knowledge Base", "🧠  Memory", "🔌  API Connections", "🧩  MCP Servers", "⚙️  Settings"],
+            label_visibility="collapsed",
         )
 
         st.divider()
@@ -29,5 +40,11 @@ else:
         chat_view.render()
     elif "Knowledge" in page:
         knowledge_view.render()
+    elif "Memory" in page:
+        memory_view.render()
+    elif "API Connections" in page:
+        api_connections_view.render()
+    elif "MCP Servers" in page:
+        mcp_servers_view.render()
     else:
         settings_view.render()

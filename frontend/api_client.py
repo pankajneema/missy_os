@@ -86,17 +86,63 @@ def list_providers(token: str) -> list[dict]:
     return _request("GET", "/providers", token=token)
 
 
-def save_provider(token: str, provider: str, api_key: str, model_name: str) -> dict:
+def save_provider(token: str, provider: str, api_key: str, model_name: str, name: str | None = None) -> dict:
     return _request(
         "POST",
         "/providers",
         token=token,
-        json={"provider": provider, "api_key": api_key, "model_name": model_name},
+        json={"provider": provider, "api_key": api_key, "model_name": model_name, "name": name},
     )
 
 
 def delete_provider(token: str, provider: str) -> None:
     _request("DELETE", f"/providers/{provider}", token=token)
+
+
+def set_provider_revoked(token: str, provider: str, revoked: bool) -> dict:
+    return _request("POST", f"/providers/{provider}/revoke", token=token, json={"revoked": revoked})
+
+
+def test_provider(token: str, provider: str, api_key: str, model_name: str) -> dict:
+    """Never raises on a failed connection test - success=False + message is
+    the expected, normal outcome for a bad key, not an ApiError."""
+    return _request(
+        "POST",
+        "/providers/test",
+        token=token,
+        json={"provider": provider, "api_key": api_key, "model_name": model_name},
+    )
+
+
+# --- MCP servers ---
+
+def list_mcp_servers(token: str) -> list[dict]:
+    return _request("GET", "/mcp-servers", token=token)
+
+
+def add_mcp_server(
+    token: str,
+    name: str,
+    transport: str,
+    command: str | None = None,
+    args: list[str] | None = None,
+    url: str | None = None,
+    env: dict[str, str] | None = None,
+) -> dict:
+    return _request(
+        "POST",
+        "/mcp-servers",
+        token=token,
+        json={"name": name, "transport": transport, "command": command, "args": args, "url": url, "env": env},
+    )
+
+
+def set_mcp_server_enabled(token: str, server_id: str, enabled: bool) -> dict:
+    return _request("POST", f"/mcp-servers/{server_id}/enabled", token=token, json={"enabled": enabled})
+
+
+def delete_mcp_server(token: str, server_id: str) -> None:
+    _request("DELETE", f"/mcp-servers/{server_id}", token=token)
 
 
 # --- Chat ---
@@ -120,7 +166,6 @@ def send_message(
     provider: str,
     image: tuple[str, bytes, str] | None = None,
     document: tuple[str, bytes] | None = None,
-    use_knowledge_base: bool = False,
 ) -> dict:
     """image: (filename, bytes, content_type); document: (filename, bytes)."""
     files = {}
@@ -135,11 +180,7 @@ def send_message(
         "POST",
         f"/conversations/{conversation_id}/messages",
         token=token,
-        data={
-            "content": content,
-            "provider": provider,
-            "use_knowledge_base": "true" if use_knowledge_base else "false",
-        },
+        data={"content": content, "provider": provider},
         files=files or None,
     )
 
@@ -190,3 +231,17 @@ def add_knowledge_note(token: str, title: str, content: str) -> dict:
 
 def delete_knowledge_source(token: str, source_id: str) -> None:
     _request("DELETE", f"/knowledge/sources/{source_id}", token=token)
+
+
+# --- Memory ---
+
+def list_memories(token: str) -> list[dict]:
+    return _request("GET", "/memory", token=token)
+
+
+def add_memory(token: str, content: str, category: str = "fact") -> dict:
+    return _request("POST", "/memory", token=token, json={"content": content, "category": category})
+
+
+def delete_memory(token: str, memory_id: str) -> None:
+    _request("DELETE", f"/memory/{memory_id}", token=token)
