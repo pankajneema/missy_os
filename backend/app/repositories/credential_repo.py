@@ -18,6 +18,17 @@ def get_by_user_and_provider(db: Session, user_id: uuid.UUID, provider: LLMProvi
     )
 
 
+def get_any_usable_credential(db: Session, user_id: uuid.UUID) -> LLMCredential | None:
+    """For background/best-effort work (like knowledge graph extraction on
+    ingestion) that needs SOME working provider, not one the user picked for
+    this specific call - prefers whichever is marked active (last used in
+    chat), falling back to any other non-revoked credential."""
+    credentials = [c for c in list_by_user(db, user_id) if not c.is_revoked]
+    if not credentials:
+        return None
+    return next((c for c in credentials if c.is_active), credentials[0])
+
+
 def upsert(
     db: Session,
     user_id: uuid.UUID,

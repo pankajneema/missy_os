@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     # CORS - Streamlit runs on a different port than FastAPI
     allowed_origins: list[str] = ["http://localhost:8501"]
 
+    # LangSmith tracing (optional) - an operator-level setting, not a
+    # per-user credential, so it lives here rather than in API Connections.
+    # Sign up at smith.langchain.com, create an API key, and set it below to
+    # enable tracing; leave unset and nothing changes (off by default).
+    langsmith_api_key: str | None = None
+    langsmith_project: str = "missy-os"
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -6,6 +6,7 @@ import session
 _PROVIDER_LABELS = {"openai": "OpenAI", "anthropic": "Anthropic", "gemini": "Gemini", "groq": "Groq"}
 _IMAGE_EXTS = {"png", "jpg", "jpeg", "webp"}
 _DOCUMENT_EXTS = {"pdf", "docx", "txt", "md"}
+_FINAL_EVENT_TYPES = {"done", "needs_confirmation", "error"}
 
 
 def _get_primary_conversation(token: str) -> dict:
@@ -28,9 +29,55 @@ def _is_image(filename: str) -> bool:
     return filename.rsplit(".", 1)[-1].lower() in _IMAGE_EXTS
 
 
+def _store_final_event(event: dict) -> None:
+    """A turn either finishes normally, or pauses because the model wants to
+    run a tool with real side effects (write/delete/move - see app/ai/graph.py
+    on the backend) and needs the user's go-ahead first. Either way, the
+    outcome lives in session_state so the next render can act on it."""
+    if event["type"] == "needs_confirmation":
+        st.session_state["pending_confirmation"] = event["confirmation"]
+    else:
+        st.session_state["pending_confirmation"] = None
+
+
+def _stream_and_render(events) -> dict:
+    """Drives st.write_stream with just the answer tokens as they arrive;
+    tool-status updates ("🔧 Using search_knowledge_base...") show in a
+    separate placeholder since they aren't part of the answer text itself.
+    Returns the final event (done / needs_confirmation / error) once the
+    backend's stream ends."""
+    status_placeholder = st.empty()
+    outcome: dict = {}
+
+    def token_stream():
+        try:
+            for event in events:
+                if event["type"] == "status":
+                    if event["tool"] == "self-review":
+                        # Missy caught an issue with her own draft and is
+                        # fixing it - see app/ai/graph.py's critique step.
+                        # Signaled explicitly so the corrected text doesn't
+                        # look like it's silently overwriting the draft.
+                        status_placeholder.caption("🔄 Refining answer...")
+                    else:
+                        status_placeholder.caption(f"🔧 Using {event['tool']}...")
+                elif event["type"] == "token":
+                    status_placeholder.empty()
+                    yield event["text"]
+                elif event["type"] in _FINAL_EVENT_TYPES:
+                    outcome["event"] = event
+        except api_client.ApiError as exc:
+            outcome["event"] = {"type": "error", "detail": str(exc)}
+
+    st.write_stream(token_stream())
+    status_placeholder.empty()
+    return outcome.get("event", {"type": "error", "detail": "No response received."})
+
+
 def _send_and_show(token: str, conversation_id: str, provider: str, content: str, attached_file) -> bool:
-    """Renders the user's turn, calls the backend, renders the reply. Returns
-    True on success (caller should rerun to reset attachment widgets)."""
+    """Renders the user's turn, streams the reply live (or stores a pending
+    confirmation for the next render). Returns True on success (caller
+    should rerun to reset attachment widgets)."""
     image_file = attached_file if attached_file and _is_image(attached_file.name) else None
     document_file = attached_file if attached_file and not image_file else None
 
@@ -41,24 +88,47 @@ def _send_and_show(token: str, conversation_id: str, provider: str, content: str
         if document_file is not None:
             st.caption(f"📄 {document_file.name}")
 
+    image_arg = (image_file.name, image_file.getvalue(), image_file.type) if image_file else None
+    document_arg = (document_file.name, document_file.getvalue()) if document_file else None
+    events = api_client.stream_message(token, conversation_id, content, provider, image=image_arg, document=document_arg)
+
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            try:
-                image_arg = (image_file.name, image_file.getvalue(), image_file.type) if image_file else None
-                document_arg = (document_file.name, document_file.getvalue()) if document_file else None
-                reply = api_client.send_message(
-                    token,
-                    conversation_id,
-                    content,
-                    provider,
-                    image=image_arg,
-                    document=document_arg,
-                )
-                st.markdown(reply["content"])
-            except api_client.ApiError as exc:
-                st.error(str(exc))
-                return False
+        outcome = _stream_and_render(events)
+        if outcome["type"] == "error":
+            st.error(outcome["detail"])
+            return False
+
+    _store_final_event(outcome)
     return True
+
+
+def _render_pending_confirmation(token: str, conversation_id: str, confirmation: dict) -> None:
+    with st.chat_message("assistant"):
+        st.warning(f"⚠️ Missy wants to run **{confirmation['tool_name']}** with these arguments:")
+        st.json(confirmation["tool_args"])
+        approve_col, deny_col = st.columns(2)
+        if approve_col.button("✅ Approve", key=f"approve_{confirmation['id']}", use_container_width=True):
+            _resolve_confirmation(token, conversation_id, confirmation["id"], True)
+        if deny_col.button("❌ Deny", key=f"deny_{confirmation['id']}", use_container_width=True):
+            _resolve_confirmation(token, conversation_id, confirmation["id"], False)
+
+
+def _resolve_confirmation(token: str, conversation_id: str, confirmation_id: str, approved: bool) -> None:
+    with st.spinner("Approving..." if approved else "Denying..."):
+        events = api_client.stream_confirm_tool_call(token, conversation_id, confirmation_id, approved)
+        outcome = {"type": "error", "detail": "No response received."}
+        try:
+            for event in events:
+                if event["type"] in _FINAL_EVENT_TYPES:
+                    outcome = event
+        except api_client.ApiError as exc:
+            outcome = {"type": "error", "detail": str(exc)}
+
+    if outcome["type"] == "error":
+        st.error(outcome["detail"])
+        return
+    _store_final_event(outcome)
+    st.rerun()
 
 
 def render() -> None:
@@ -99,6 +169,10 @@ def render() -> None:
     try:
         conversation = _get_primary_conversation(token)
         messages = api_client.get_messages(token, conversation["id"])
+        # The backend is the source of truth for a pending confirmation, not
+        # just session_state - a still-paused turn needs to reappear even
+        # after a page reload wipes client-side state.
+        st.session_state["pending_confirmation"] = api_client.get_pending_confirmation(token, conversation["id"])
     except api_client.ApiError as exc:
         st.error(str(exc))
         return
@@ -124,6 +198,11 @@ def render() -> None:
                     key=f"download_{message['id']}",
                     help="Download this reply as a markdown file",
                 )
+
+    pending_confirmation = st.session_state.get("pending_confirmation")
+    if pending_confirmation:
+        _render_pending_confirmation(token, conversation["id"], pending_confirmation)
+        return  # no new message until this one's resolved - it's the same paused turn
 
     version = st.session_state.get("attach_version", 0)
 

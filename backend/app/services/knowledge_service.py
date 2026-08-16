@@ -7,14 +7,51 @@ from app.ai.chunking import split_text
 from app.ai.documents import extract_text
 from app.ai.embeddings import embed_text, embed_texts
 from app.ai.fusion import reciprocal_rank_fusion
+from app.ai.knowledge_graph_extraction import extract_graph_data
+from app.ai.model_factory import build_chat_model
 from app.ai.reranking import rerank
 from app.ai.web import fetch_page
+from app.core.encryption import decrypt_secret
+from app.core.logging import get_logger
 from app.models.knowledge_chunk import KnowledgeChunk
 from app.models.knowledge_source import KnowledgeSource, SourceType
-from app.repositories import knowledge_repo
+from app.repositories import credential_repo, knowledge_graph_repo, knowledge_repo
+
+logger = get_logger(__name__)
 
 
-def _ingest(db: Session, source: KnowledgeSource, raw_text: str) -> None:
+def _try_extract_graph(db: Session, user_id: uuid.UUID, source: KnowledgeSource, raw_text: str) -> None:
+    """Best-effort, additive - chunk search already covers the document
+    regardless of whether this succeeds. Silently does nothing if the user
+    has no usable LLM connection yet, rather than failing ingestion over it."""
+    credential = credential_repo.get_any_usable_credential(db, user_id)
+    if credential is None:
+        return
+    try:
+        api_key = decrypt_secret(credential.encrypted_api_key)
+        chat_model = build_chat_model(credential.provider, credential.model_name, api_key)
+        items = extract_graph_data(chat_model, raw_text)
+        for item in items:
+            source_entity = knowledge_graph_repo.get_or_create_entity(
+                db, user_id, item["source"], item.get("source_type", "concept"), None
+            )
+            target_entity = knowledge_graph_repo.get_or_create_entity(
+                db, user_id, item["target"], item.get("target_type", "concept"), None
+            )
+            knowledge_graph_repo.create_relationship(
+                db,
+                user_id,
+                source_entity.id,
+                target_entity.id,
+                item["relationship"],
+                item.get("description"),
+                source.id,
+            )
+    except Exception:  # noqa: BLE001 - best-effort, must never break ingestion
+        logger.exception("Knowledge graph extraction failed for source %s - continuing without it", source.id)
+
+
+def _ingest(db: Session, user_id: uuid.UUID, source: KnowledgeSource, raw_text: str) -> None:
     chunks = split_text(raw_text)
     if not chunks:
         knowledge_repo.mark_failed(db, source, "No usable text was found in this source.")
@@ -28,6 +65,7 @@ def _ingest(db: Session, source: KnowledgeSource, raw_text: str) -> None:
 
     knowledge_repo.add_chunks(db, source.id, chunks, vectors)
     knowledge_repo.mark_ready(db, source)
+    _try_extract_graph(db, user_id, source, raw_text)
 
 
 def add_file(db: Session, user_id: uuid.UUID, filename: str, content: bytes) -> KnowledgeSource:
@@ -39,7 +77,7 @@ def add_file(db: Session, user_id: uuid.UUID, filename: str, content: bytes) -> 
     except HTTPException as exc:
         knowledge_repo.mark_failed(db, source, exc.detail)
         return source
-    _ingest(db, source, text)
+    _ingest(db, user_id, source, text)
     return source
 
 
@@ -54,7 +92,7 @@ def add_url(db: Session, user_id: uuid.UUID, url: str) -> KnowledgeSource:
         return source
     source.title = title or url
     db.commit()
-    _ingest(db, source, text)
+    _ingest(db, user_id, source, text)
     return source
 
 
@@ -62,7 +100,7 @@ def add_note(db: Session, user_id: uuid.UUID, title: str, content: str) -> Knowl
     source = knowledge_repo.create_source(
         db, user_id=user_id, title=title, source_type=SourceType.text, original_reference=None
     )
-    _ingest(db, source, content)
+    _ingest(db, user_id, source, content)
     return source
 
 

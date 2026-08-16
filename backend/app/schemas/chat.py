@@ -21,3 +21,16 @@ class MessageResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ConfirmationResponse(BaseModel):
+    id: uuid.UUID
+    tool_name: str
+    tool_args: dict
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ConfirmToolRequest(BaseModel):
+    approved: bool

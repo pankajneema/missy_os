@@ -5,11 +5,14 @@ from app.models import (  # noqa: F401
     AssistantProfile,
     Conversation,
     KnowledgeChunk,
+    KnowledgeEntity,
+    KnowledgeRelationship,
     KnowledgeSource,
     LLMCredential,
     MCPServer,
     MemoryEntry,
     Message,
+    PendingToolConfirmation,
     User,
 )
 

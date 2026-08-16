@@ -1,7 +1,8 @@
 from collections.abc import Generator
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
@@ -14,6 +15,10 @@ _bearer_scheme = HTTPBearer()
 
 def get_db() -> Generator[Session, None, None]:
     yield from _get_db()
+
+
+def get_checkpointer(request: Request) -> AsyncPostgresSaver:
+    return request.app.state.checkpointer
 
 
 def get_current_user(

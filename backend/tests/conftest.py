@@ -57,6 +57,16 @@ def anyio_backend() -> str:
 
 
 @pytest.fixture()
+async def checkpointer():
+    """Fresh per test (not session-scoped) - anyio gives each test its own
+    event loop by default, and a pooled connection can't safely cross loops."""
+    from app.core.checkpointer import open_checkpointer
+
+    async with open_checkpointer() as cp:
+        yield cp
+
+
+@pytest.fixture()
 def profile(db: Session, user: User) -> AssistantProfile:
     return profile_repo.upsert(
         db,

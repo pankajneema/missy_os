@@ -6,8 +6,9 @@ from datetime import datetime, timezone
 from langchain_core.tools import BaseTool, tool
 from sqlalchemy.orm import Session
 
-from app.ai.prompts import build_knowledge_context
+from app.ai.prompts import build_knowledge_context, build_knowledge_graph_context
 from app.models.memory_entry import MemorySource
+from app.repositories import knowledge_graph_repo
 from app.services import knowledge_service, memory_service
 
 _SAFE_OPERATORS = {
@@ -47,6 +48,28 @@ def build_tools(db: Session, user_id: uuid.UUID) -> list[BaseTool]:
         return build_knowledge_context(chunks)
 
     @tool
+    def search_knowledge_graph(entity_name: str) -> str:
+        """Search the user's knowledge graph for a specific named entity (a technology, product, organization, person, or concept) and see how it relates to other things - what it's used for, what it depends on, why it was chosen. More precise than search_knowledge_base for relationship questions like "what does X use" or "why was Y chosen" - use this first for those, and search_knowledge_base for broader questions."""
+        entities = knowledge_graph_repo.search_entities_by_name(db, user_id, entity_name)
+        if not entities:
+            return f"No entity matching '{entity_name}' found in the knowledge graph."
+
+        lines = []
+        for entity in entities:
+            for rel in knowledge_graph_repo.get_relationships_for_entity(db, user_id, entity.id):
+                if rel.source_entity_id == entity.id:
+                    line = f"{entity.name} --[{rel.relationship_type}]--> {rel.target_entity.name}"
+                else:
+                    line = f"{rel.source_entity.name} --[{rel.relationship_type}]--> {entity.name}"
+                if rel.description:
+                    line += f" ({rel.description})"
+                lines.append(line)
+
+        if not lines:
+            return f"Found '{entities[0].name}' in the knowledge graph, but no recorded relationships for it."
+        return build_knowledge_graph_context(lines)
+
+    @tool
     def remember_fact(fact: str) -> str:
         """Save a fact about the user permanently to memory, to be recalled in future conversations. Use this when the user explicitly asks you to remember something about them."""
         memory_service.remember(db, user_id, fact, MemorySource.manual)
@@ -66,4 +89,4 @@ def build_tools(db: Session, user_id: uuid.UUID) -> list[BaseTool]:
             return "Couldn't evaluate that - make sure it's a valid arithmetic expression."
         return str(result)
 
-    return [search_knowledge_base, remember_fact, get_current_datetime, calculator]
+    return [search_knowledge_base, search_knowledge_graph, remember_fact, get_current_datetime, calculator]

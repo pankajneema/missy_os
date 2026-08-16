@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 import requests
@@ -8,6 +9,16 @@ from config import API_BASE_URL
 class ApiError(Exception):
     """Raised with a message straight from the backend's `detail` field, so
     views can show it to the user as-is instead of a raw traceback."""
+
+
+def _format_detail(detail: Any) -> str:
+    """FastAPI's own 422 validation errors put a LIST of error dicts in
+    `detail` (not a string like every other error path here) - stringifying
+    that raw would show something like "[{'type': 'value_error', 'loc': ...
+    'msg': ...}]" instead of a readable message."""
+    if isinstance(detail, list):
+        return "; ".join(item.get("msg", str(item)) if isinstance(item, dict) else str(item) for item in detail)
+    return str(detail)
 
 
 def _request(method: str, path: str, token: str | None = None, raw: bool = False, **kwargs: Any) -> Any:
@@ -25,7 +36,7 @@ def _request(method: str, path: str, token: str | None = None, raw: bool = False
             detail = response.json().get("detail", response.text)
         except ValueError:
             detail = response.text
-        raise ApiError(detail)
+        raise ApiError(_format_detail(detail))
 
     if raw:
         return response.content
@@ -159,14 +170,42 @@ def get_messages(token: str, conversation_id: str) -> list[dict]:
     return _request("GET", f"/conversations/{conversation_id}/messages", token=token)
 
 
-def send_message(
+def get_pending_confirmation(token: str, conversation_id: str) -> dict | None:
+    return _request("GET", f"/conversations/{conversation_id}/pending-confirmation", token=token)
+
+
+def _stream_ndjson(method: str, path: str, token: str, **kwargs: Any):
+    """Yields parsed event dicts as they arrive - {"type": "status"|"token",
+    ...} while the reply is being generated, then a final {"type": "done"|
+    "needs_confirmation"|"error", ...}. Validation errors (bad conversation,
+    revoked credential, etc.) happen before the backend starts streaming, so
+    they still arrive as a normal non-200 response, not a stream event."""
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        response = requests.request(method, f"{API_BASE_URL}{path}", headers=headers, timeout=120, stream=True, **kwargs)
+    except requests.ConnectionError as exc:
+        raise ApiError(f"Can't reach the Missy backend at {API_BASE_URL}. Is it running?") from exc
+
+    if not response.ok:
+        try:
+            detail = response.json().get("detail", response.text)
+        except ValueError:
+            detail = response.text
+        raise ApiError(_format_detail(detail))
+
+    for line in response.iter_lines():
+        if line:
+            yield json.loads(line)
+
+
+def stream_message(
     token: str,
     conversation_id: str,
     content: str,
     provider: str,
     image: tuple[str, bytes, str] | None = None,
     document: tuple[str, bytes] | None = None,
-) -> dict:
+):
     """image: (filename, bytes, content_type); document: (filename, bytes)."""
     files = {}
     if image:
@@ -176,12 +215,24 @@ def send_message(
         filename, data = document
         files["document"] = (filename, data)
 
-    return _request(
+    yield from _stream_ndjson(
         "POST",
         f"/conversations/{conversation_id}/messages",
-        token=token,
+        token,
         data={"content": content, "provider": provider},
         files=files or None,
+    )
+
+
+def stream_confirm_tool_call(token: str, conversation_id: str, confirmation_id: str, approved: bool):
+    """Approving one risky tool call can still lead straight into another
+    (e.g. write then delete), which needs its own approval before the turn
+    is done - the caller should keep watching for a "needs_confirmation" event."""
+    yield from _stream_ndjson(
+        "POST",
+        f"/conversations/{conversation_id}/messages/{confirmation_id}/confirm",
+        token,
+        json={"approved": approved},
     )
 
 

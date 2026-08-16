@@ -22,6 +22,13 @@ def create(db: Session, conversation_id: uuid.UUID, role: MessageRole, content: 
     return message
 
 
+def update_content(db: Session, message: Message, content: str) -> Message:
+    message.content = content
+    db.commit()
+    db.refresh(message)
+    return message
+
+
 def delete_by_conversation(db: Session, conversation_id: uuid.UUID) -> None:
     for message in list_by_conversation(db, conversation_id):
         db.delete(message)
