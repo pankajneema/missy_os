@@ -26,3 +26,13 @@ def create(db: Session, user_id: uuid.UUID, title: str = "New Chat") -> Conversa
     db.commit()
     db.refresh(conversation)
     return conversation
+
+
+def update_summary(
+    db: Session, conversation: Conversation, summary: str, summarized_through_message_id: uuid.UUID
+) -> Conversation:
+    conversation.summary = summary
+    conversation.summarized_through_message_id = summarized_through_message_id
+    db.commit()
+    db.refresh(conversation)
+    return conversation

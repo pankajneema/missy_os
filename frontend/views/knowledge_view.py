@@ -35,7 +35,10 @@ def render() -> None:
     file_tab, url_tab, note_tab = st.tabs(["📄 File", "🔗 URL", "📝 Note"])
 
     with file_tab:
-        uploaded = st.file_uploader("Upload a PDF, DOCX, TXT, or MD file", type=["pdf", "docx", "txt", "md"])
+        uploaded = st.file_uploader(
+            "Upload a PDF, DOCX, TXT, MD file, or an image (PNG/JPG/WEBP)",
+            type=["pdf", "docx", "txt", "md", "png", "jpg", "jpeg", "webp"],
+        )
         if st.button("Add file", key="add_file_btn", disabled=uploaded is None):
             with st.spinner(f"Reading and indexing {uploaded.name}..."):
                 try:

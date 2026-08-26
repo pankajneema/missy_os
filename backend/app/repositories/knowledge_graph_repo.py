@@ -55,6 +55,10 @@ def create_relationship(
     return relationship
 
 
+def list_entities_for_user(db: Session, user_id: uuid.UUID) -> list[KnowledgeEntity]:
+    return list(db.scalars(select(KnowledgeEntity).where(KnowledgeEntity.user_id == user_id)))
+
+
 def search_entities_by_name(db: Session, user_id: uuid.UUID, query: str, limit: int = 3) -> list[KnowledgeEntity]:
     return list(
         db.scalars(

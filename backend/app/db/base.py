@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401
     MemoryEntry,
     Message,
     PendingToolConfirmation,
+    ScheduledTask,
     User,
 )
 

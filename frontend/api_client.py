@@ -156,6 +156,40 @@ def delete_mcp_server(token: str, server_id: str) -> None:
     _request("DELETE", f"/mcp-servers/{server_id}", token=token)
 
 
+# --- Scheduled tasks ---
+
+def list_scheduled_tasks(token: str) -> list[dict]:
+    return _request("GET", "/scheduled-tasks", token=token)
+
+
+def add_scheduled_task(
+    token: str,
+    prompt: str,
+    schedule_type: str,
+    run_at_time: str | None = None,
+    interval_hours: int | None = None,
+) -> dict:
+    return _request(
+        "POST",
+        "/scheduled-tasks",
+        token=token,
+        json={
+            "prompt": prompt,
+            "schedule_type": schedule_type,
+            "run_at_time": run_at_time,
+            "interval_hours": interval_hours,
+        },
+    )
+
+
+def set_scheduled_task_enabled(token: str, task_id: str, enabled: bool) -> dict:
+    return _request("POST", f"/scheduled-tasks/{task_id}/enabled", token=token, json={"enabled": enabled})
+
+
+def delete_scheduled_task(token: str, task_id: str) -> None:
+    _request("DELETE", f"/scheduled-tasks/{task_id}", token=token)
+
+
 # --- Chat ---
 
 def list_conversations(token: str) -> list[dict]:

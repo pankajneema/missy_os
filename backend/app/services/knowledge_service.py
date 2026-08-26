@@ -1,14 +1,16 @@
 import uuid
 
 from fastapi import HTTPException, status
+from langchain_core.messages import HumanMessage
 from sqlalchemy.orm import Session
 
 from app.ai.chunking import split_text
-from app.ai.documents import extract_text
+from app.ai.documents import extract_text, image_data_url, is_image_file
 from app.ai.embeddings import embed_text, embed_texts
 from app.ai.fusion import reciprocal_rank_fusion
 from app.ai.knowledge_graph_extraction import extract_graph_data
 from app.ai.model_factory import build_chat_model
+from app.ai.prompts import IMAGE_DESCRIPTION_PROMPT
 from app.ai.reranking import rerank
 from app.ai.web import fetch_page
 from app.core.encryption import decrypt_secret
@@ -18,6 +20,33 @@ from app.models.knowledge_source import KnowledgeSource, SourceType
 from app.repositories import credential_repo, knowledge_graph_repo, knowledge_repo
 
 logger = get_logger(__name__)
+
+
+def _describe_image(db: Session, user_id: uuid.UUID, filename: str, content: bytes) -> str:
+    """Turns image bytes into a searchable text description via a
+    vision-capable LLM - this description, not the raw pixels, is what
+    actually gets chunked/embedded, since the rest of the KB pipeline is
+    text-only. Raises if there's no usable credential or the call fails;
+    callers should catch and mark the source failed rather than let a bad
+    image silently produce an empty/garbage knowledge source."""
+    credential = credential_repo.get_any_usable_credential(db, user_id)
+    if credential is None:
+        raise ValueError("No API connection is set up yet - add one in API Connections before uploading images.")
+
+    api_key = decrypt_secret(credential.encrypted_api_key)
+    chat_model = build_chat_model(credential.provider, credential.model_name, api_key)
+    data_url = image_data_url(filename, content)
+    message = HumanMessage(
+        content=[
+            {"type": "text", "text": IMAGE_DESCRIPTION_PROMPT},
+            {"type": "image_url", "image_url": {"url": data_url}},
+        ]
+    )
+    try:
+        response = chat_model.invoke([message])
+    except Exception as exc:  # noqa: BLE001 - surfaced to the caller as a failed source
+        raise ValueError(f"Image description failed - the connected model may not support images: {exc}") from exc
+    return response.content.strip()
 
 
 def _try_extract_graph(db: Session, user_id: uuid.UUID, source: KnowledgeSource, raw_text: str) -> None:
@@ -72,11 +101,18 @@ def add_file(db: Session, user_id: uuid.UUID, filename: str, content: bytes) -> 
     source = knowledge_repo.create_source(
         db, user_id=user_id, title=filename, source_type=SourceType.file, original_reference=filename
     )
-    try:
-        text = extract_text(filename, content)
-    except HTTPException as exc:
-        knowledge_repo.mark_failed(db, source, exc.detail)
-        return source
+    if is_image_file(filename):
+        try:
+            text = _describe_image(db, user_id, filename, content)
+        except ValueError as exc:
+            knowledge_repo.mark_failed(db, source, str(exc))
+            return source
+    else:
+        try:
+            text = extract_text(filename, content)
+        except HTTPException as exc:
+            knowledge_repo.mark_failed(db, source, exc.detail)
+            return source
     _ingest(db, user_id, source, text)
     return source
 

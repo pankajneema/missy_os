@@ -3,7 +3,7 @@ import io
 import pymupdf
 from PIL import Image, ImageDraw
 
-from app.ai.documents import extract_text
+from app.ai.documents import extract_text, image_data_url, is_image_file
 
 
 def _digital_pdf(text: str) -> bytes:
@@ -33,3 +33,19 @@ def test_extracts_text_directly_from_a_digital_pdf():
 def test_falls_back_to_ocr_for_a_scanned_pdf():
     result = extract_text("scanned.pdf", _scanned_pdf("TOTAL MARKS 487"))
     assert "487" in result
+
+
+def test_is_image_file_recognizes_supported_extensions():
+    assert is_image_file("photo.png")
+    assert is_image_file("photo.JPG")
+    assert is_image_file("photo.webp")
+    assert not is_image_file("notes.txt")
+    assert not is_image_file("noextension")
+
+
+def test_image_data_url_encodes_content_with_correct_mime_type():
+    url = image_data_url("photo.jpg", b"fake-bytes")
+    assert url.startswith("data:image/jpeg;base64,")
+
+    url = image_data_url("photo.png", b"fake-bytes")
+    assert url.startswith("data:image/png;base64,")

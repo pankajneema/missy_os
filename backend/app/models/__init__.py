@@ -9,6 +9,7 @@ from app.models.mcp_server import MCPServer, MCPTransport
 from app.models.memory_entry import MemoryCategory, MemoryEntry, MemorySource
 from app.models.message import Message, MessageRole
 from app.models.pending_confirmation import PendingToolConfirmation
+from app.models.scheduled_task import ScheduledTask, ScheduleType
 from app.models.user import User
 
 __all__ = [
@@ -31,4 +32,6 @@ __all__ = [
     "MemoryCategory",
     "MemorySource",
     "PendingToolConfirmation",
+    "ScheduledTask",
+    "ScheduleType",
 ]

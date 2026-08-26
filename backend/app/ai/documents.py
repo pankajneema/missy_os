@@ -1,3 +1,4 @@
+import base64
 import io
 
 import docx
@@ -16,6 +17,19 @@ _MIN_TEXT_LAYER_CHARS = 20
 # inside typical context windows. Knowledge-base ingestion (V2) never
 # truncates: the full document gets chunked instead.
 _MAX_CHARS_PER_TURN = 40_000
+
+IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+
+
+def is_image_file(filename: str) -> bool:
+    suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return suffix in IMAGE_EXTENSIONS
+
+
+def image_data_url(filename: str, content: bytes) -> str:
+    suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else "png"
+    content_type = "image/jpeg" if suffix == "jpg" else f"image/{suffix}"
+    return f"data:{content_type};base64,{base64.b64encode(content).decode('utf-8')}"
 
 
 def extract_text(filename: str, content: bytes) -> str:

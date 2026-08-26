@@ -9,6 +9,7 @@ from views import (
     mcp_servers_view,
     memory_view,
     onboarding_view,
+    scheduled_tasks_view,
     settings_view,
 )
 
@@ -27,7 +28,15 @@ else:
 
         page = st.radio(
             "Navigate",
-            ["💬  Chat", "📚  Knowledge Base", "🧠  Memory", "🔌  API Connections", "🧩  MCP Servers", "⚙️  Settings"],
+            [
+                "💬  Chat",
+                "📚  Knowledge Base",
+                "🧠  Memory",
+                "⏰  Scheduled Tasks",
+                "🔌  API Connections",
+                "🧩  MCP Servers",
+                "⚙️  Settings",
+            ],
             label_visibility="collapsed",
         )
 
@@ -42,6 +51,8 @@ else:
         knowledge_view.render()
     elif "Memory" in page:
         memory_view.render()
+    elif "Scheduled Tasks" in page:
+        scheduled_tasks_view.render()
     elif "API Connections" in page:
         api_connections_view.render()
     elif "MCP Servers" in page:

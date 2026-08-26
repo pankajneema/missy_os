@@ -107,6 +107,7 @@ def build_graph(
     tools: list[BaseTool],
     user_id: uuid.UUID,
     native_tool_names: set[str],
+    unattended: bool = False,
 ) -> CompiledStateGraph:
     """supervisor routes each turn to either agent (direct - simple chat,
     at most a quick tool call) or researcher (a multi-step investigation
@@ -118,7 +119,13 @@ def build_graph(
     only the final reply (see USER_FACING_NODES). A risky tool call pauses
     the whole run via interrupt() regardless of which path triggered it -
     the checkpointer persists exactly where it stopped, so a later call with
-    Command(resume=...) picks the SAME node back up instead of restarting."""
+    Command(resume=...) picks the SAME node back up instead of restarting.
+
+    unattended=True (used by scheduled/background runs - see
+    app/services/scheduled_task_service.py) skips interrupt() entirely and
+    auto-denies every risky tool call instead: there's no human present to
+    ever resolve a paused confirmation on an unattended run, so pausing
+    would just strand the run forever rather than protect anything."""
     tools_by_name = {t.name: t for t in tools}
     model_with_tools = chat_model.bind_tools(tools)
 
@@ -211,7 +218,12 @@ def build_graph(
         for call in tool_calls:
             tool_fn = tools_by_name.get(call["name"])
             if tool_fn is not None and is_tool_risky(tool_fn, native_tool_names):
-                approvals[call["id"]] = interrupt({"tool_name": call["name"], "tool_args": call["args"]})
+                if unattended:
+                    # No human is present to ever answer an interrupt() on an
+                    # unattended run - deny outright instead of pausing forever.
+                    approvals[call["id"]] = False
+                else:
+                    approvals[call["id"]] = interrupt({"tool_name": call["name"], "tool_args": call["args"]})
 
         # Pass 2: now actually run things - nothing here can trigger another
         # interrupt, so nothing here can be re-entered/re-executed by a resume.
@@ -221,10 +233,16 @@ def build_graph(
             if tool_fn is None:
                 content = f"Unknown tool: {call['name']}"
             elif call["id"] in approvals and not approvals[call["id"]]:
-                content = (
-                    f"The user denied permission to run '{call['name']}'. "
-                    "Do not retry it - explain that to the user and continue without it."
-                )
+                if unattended:
+                    content = (
+                        f"'{call['name']}' requires manual approval and is not available in an unattended "
+                        "scheduled run. Do not retry it - mention in your summary that this was skipped."
+                    )
+                else:
+                    content = (
+                        f"The user denied permission to run '{call['name']}'. "
+                        "Do not retry it - explain that to the user and continue without it."
+                    )
             else:
                 content = await run_tool(tool_fn, call)
             outputs.append(ToolMessage(content=content, tool_call_id=call["id"], name=call["name"]))

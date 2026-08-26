@@ -135,6 +135,47 @@ async def test_two_risky_tool_calls_in_one_batch_each_need_their_own_approval_an
     assert call_counts == {"a": 1, "b": 1}  # each ran exactly once, not twice
 
 
+async def test_unattended_run_auto_denies_a_risky_tool_without_ever_pausing(checkpointer):
+    """Scheduled/background runs (app/services/scheduled_task_service.py)
+    have nobody present to ever answer an interrupt() - unattended=True must
+    resolve a risky call to denied and keep running to completion in a
+    single ainvoke, never pausing."""
+    call_count = {"n": 0}
+
+    @tool
+    def risky() -> str:
+        """Risky."""
+        call_count["n"] += 1
+        return "done"
+
+    risky.metadata = {"readOnlyHint": False, "destructiveHint": True}
+
+    class _FakeModel(GenericFakeChatModel):
+        def bind_tools(self, tools, **kwargs):
+            return self
+
+        async def ainvoke(self, messages, config=None, **kwargs):
+            return AIMessage(content="DIRECT")
+
+        async def astream(self, messages, config=None, **kwargs):
+            already_called = any(getattr(m, "tool_calls", None) for m in messages)
+            if not already_called:
+                yield AIMessageChunk(content="", tool_calls=[{"name": "risky", "args": {}, "id": "c1"}])
+            else:
+                yield AIMessageChunk(content="done without it")
+
+    model = _FakeModel(messages=iter([]))
+    graph = build_graph(checkpointer, model, [risky], user_id=None, native_tool_names=set(), unattended=True)
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+    result = await graph.ainvoke({"messages": [HumanMessage(content="go")]}, config=config)
+
+    assert not result.get("__interrupt__")  # never paused
+    assert call_count["n"] == 0  # the risky tool itself never ran
+    denial = next(m for m in result["messages"] if isinstance(m, ToolMessage))
+    assert "unattended" in denial.content
+
+
 async def test_supervisor_routes_a_complex_request_through_researcher_then_finalize(checkpointer):
     """The multi-agent split: supervisor classifies the request, researcher
     loops through tools to gather information, and only finalize's answer

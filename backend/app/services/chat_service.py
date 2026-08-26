@@ -14,7 +14,13 @@ from app.ai.chains import PostgresChatMessageHistory
 from app.ai.documents import extract_text, truncate_for_single_turn
 from app.ai.graph import USER_FACING_NODES, build_graph
 from app.ai.model_factory import build_chat_model
-from app.ai.prompts import build_document_context, build_human_content, build_memory_context, build_system_prompt
+from app.ai.prompts import (
+    build_conversation_summary_context,
+    build_document_context,
+    build_human_content,
+    build_memory_context,
+    build_system_prompt,
+)
 from app.ai.tools import build_tools
 from app.core.encryption import decrypt_secret
 from app.core.logging import get_logger
@@ -23,7 +29,7 @@ from app.models.llm_credential import LLMCredential, LLMProvider
 from app.models.message import Message, MessageRole
 from app.models.pending_confirmation import PendingToolConfirmation
 from app.repositories import conversation_repo, credential_repo, message_repo, pending_confirmation_repo, profile_repo
-from app.services import mcp_service, memory_service
+from app.services import conversation_summary_service, mcp_service, memory_service
 
 logger = get_logger(__name__)
 
@@ -130,6 +136,14 @@ async def _finish_turn(
     # every other in-flight request) for the duration.
     await run_in_threadpool(memory_service.extract_and_remember, db, user_id, chat_model, user_message.content, final_content)
     credential_repo.set_last_used(db, user_id, provider)
+
+    # Best-effort, same reasoning as memory extraction above - re-fetches
+    # the conversation rather than threading it through every caller of
+    # _stream_graph_run, since this is the only place that needs it.
+    conversation = conversation_repo.get_by_id_for_user(db, conversation_id, user_id)
+    if conversation is not None:
+        await run_in_threadpool(conversation_summary_service.maybe_compress, db, conversation, chat_model)
+
     return assistant_message
 
 
@@ -261,9 +275,12 @@ async def prepare_send(
         b64 = base64.b64encode(image_bytes).decode("utf-8")
         image_data_url = f"data:{image_content_type};base64,{b64}"
 
-    history_messages = PostgresChatMessageHistory(conversation_id, db).messages
+    history_messages = PostgresChatMessageHistory(conversation, db).messages
+    system_messages = [SystemMessage(content=build_system_prompt(profile))]
+    if conversation.summary:
+        system_messages.append(SystemMessage(content=build_conversation_summary_context(conversation.summary)))
     messages = [
-        SystemMessage(content=build_system_prompt(profile)),
+        *system_messages,
         *history_messages,
         HumanMessage(content=build_human_content(model_facing_text, image_data_url)),
     ]
