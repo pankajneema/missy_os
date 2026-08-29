@@ -1,3 +1,4 @@
+import types
 import uuid
 
 import pytest
@@ -13,6 +14,16 @@ from app.repositories import conversation_repo, credential_repo
 from app.services import chat_service, mcp_service
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _allow_stdio_servers(monkeypatch):
+    """Stdio MCP servers are disabled unless an operator opts in via .env
+    (see app/services/mcp_service.py) - these tests use one to set up a
+    real risky-tool scenario, so it's enabled here for the whole file."""
+    monkeypatch.setattr(
+        "app.services.mcp_service.get_settings", lambda: types.SimpleNamespace(allow_mcp_stdio_servers=True)
+    )
 
 
 class _FakeToolCallingModel(GenericFakeChatModel):

@@ -52,5 +52,10 @@ def test_connection(provider: LLMProvider, api_key: str, model_name: str) -> tup
         chat_model = build_chat_model(provider, model_name, api_key)
         chat_model.invoke("Say OK.")
     except Exception as exc:  # noqa: BLE001 - any failure means "not working", surface it plainly
-        return False, str(exc)
+        # Some provider SDKs echo the credential back into their own error
+        # messages (e.g. "invalid api key: sk-abc123...") - strip it out
+        # before this ever leaves the backend, even though the recipient
+        # here already holds the key being tested.
+        message = str(exc).replace(api_key, mask_secret(api_key))
+        return False, message
     return True, "Connection verified."

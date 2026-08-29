@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.missyos.backend</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/mac/pnkj/missy_os/backend/.venv/bin/uvicorn</string>
+        <string>app.main:app</string>
+        <string>--host</string>
+        <string>127.0.0.1</string>
+        <string>--port</string>
+        <string>8000</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/mac/pnkj/missy_os/backend</string>
+
+    <!-- Loopback only, deliberately - see the security review finding: with
+         0.0.0.0 and open self-registration, anyone on the same network as
+         this Mac could create an account and reach the MCP stdio RCE path
+         (app/services/mcp_service.py). The frontend already talks to
+         http://localhost:8000 (frontend/config.py), so this doesn't change
+         anything for normal use - it only stops the backend from being
+         reachable from any OTHER machine on the network. -->
+
+    <!-- Without this, psycopg (langgraph's Postgres checkpointer) can't
+         find libpq: ctypes.util.find_library fails on macOS, so psycopg
+         falls back to running `pg_config --libdir` via subprocess - but
+         launchd's bare default PATH doesn't include Homebrew's bin dir, so
+         pg_config itself can't be found either, and the process crash-loops
+         with "libpq library not found". An interactive shell's PATH
+         (which is where this was tested manually all session) already has
+         /opt/homebrew/bin, which is why this only broke under launchd. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- Starts at login, and launchd restarts it any time it exits for any
+         reason - crash, killed, or a clean exit. There's no "wait for
+         Postgres" step: if Postgres isn't up yet, this process fails to
+         start, ThrottleInterval below makes launchd retry every 10s, and it
+         comes up cleanly as soon as Postgres does - no dependency ordering
+         needed for a personal single-machine setup like this one. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/mac/pnkj/missy_os/logs/backend.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/mac/pnkj/missy_os/logs/backend.err.log</string>
+</dict>
+</plist>

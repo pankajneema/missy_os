@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.missyos.frontend</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/mac/pnkj/missy_os/frontend/.venv/bin/streamlit</string>
+        <string>run</string>
+        <string>streamlit_app.py</string>
+        <string>--server.headless</string>
+        <string>true</string>
+        <string>--server.address</string>
+        <string>127.0.0.1</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/mac/pnkj/missy_os/frontend</string>
+
+    <!-- This is the fix that actually matters most from the security
+         review: without --server.address, Streamlit binds to all
+         interfaces, and its own startup log this whole session was
+         printing a genuine public "External URL" (not just a LAN address)
+         - meaning the actual user-facing gateway to the whole app may have
+         been internet-reachable the entire time, independent of whatever
+         the backend itself was bound to. Streamlit forwards every action
+         to the backend via server-side HTTP calls that originate from this
+         Mac regardless of where the browser connection came from, so
+         restricting the backend alone (127.0.0.1 in the backend plist)
+         does nothing if this front door is still open. -->
+
+    <!-- Same PATH fix as the backend plist, for consistency - the frontend
+         doesn't currently need Homebrew tools directly, but there's no
+         reason its environment should be any more minimal than a normal
+         interactive shell's. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/mac/pnkj/missy_os/logs/frontend.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/mac/pnkj/missy_os/logs/frontend.err.log</string>
+</dict>
+</plist>

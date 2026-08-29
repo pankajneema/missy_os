@@ -1,10 +1,37 @@
+import types
+
 import pytest
+from fastapi import HTTPException
 
 from app.models.mcp_server import MCPTransport
 from app.models.user import User
 from app.services import mcp_service
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _allow_stdio_servers(monkeypatch):
+    """Stdio MCP servers are disabled unless an operator opts in via .env
+    (see app/services/mcp_service.py) - every test in this file exercises
+    real stdio behavior, so it's enabled here; the gate itself is tested
+    explicitly below with this fixture bypassed per-test."""
+    monkeypatch.setattr(
+        "app.services.mcp_service.get_settings", lambda: types.SimpleNamespace(allow_mcp_stdio_servers=True)
+    )
+
+
+def test_add_server_rejects_stdio_by_default(db, user: User, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.mcp_service.get_settings", lambda: types.SimpleNamespace(allow_mcp_stdio_servers=False)
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        mcp_service.add_server(
+            db, user.id, name="scratch", transport=MCPTransport.stdio, command="npx", args=[], url=None, env=None
+        )
+
+    assert exc_info.value.status_code == 403
 
 
 async def test_get_mcp_tools_connects_to_a_real_filesystem_server(db, user: User, tmp_path):

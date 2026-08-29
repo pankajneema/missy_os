@@ -6,6 +6,7 @@ from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.encryption import decrypt_secret, encrypt_secret
 from app.core.logging import get_logger
 from app.models.mcp_server import MCPServer, MCPTransport
@@ -28,6 +29,19 @@ def add_server(
     url: str | None,
     env: dict[str, str] | None,
 ) -> MCPServer:
+    # A stdio server runs `command` with this backend's own OS privileges on
+    # behalf of whichever account configures it - any account, not just the
+    # operator's. Gated behind an operator-only .env flag so that boundary
+    # exists at the code level, not just "however many accounts can log in".
+    if transport == MCPTransport.stdio and not get_settings().allow_mcp_stdio_servers:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Local (stdio) MCP servers are disabled - set ALLOW_MCP_STDIO_SERVERS=true in .env to enable "
+                "them. They run arbitrary commands with this backend's own OS privileges, so only enable this "
+                "if every account that can log in is already fully trusted with that."
+            ),
+        )
     encrypted_env = encrypt_secret(json.dumps(env)) if env else None
     return mcp_repo.create(db, user_id, name, transport, command, args, url, encrypted_env)
 
