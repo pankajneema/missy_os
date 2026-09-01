@@ -1,0 +1,70 @@
+name: Backend tests
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    # Must be pgvector/pgvector, not plain postgres - the vector column type
+    # and HNSW index used by knowledge_chunks/memory_entries need the
+    # extension's shared library present in the image, not just `CREATE
+    # EXTENSION` succeeding against an empty postgres image (it won't).
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: missy
+          POSTGRES_PASSWORD: missy
+          POSTGRES_DB: missy_os_test
+        ports:
+          - 5439:5432
+        options: >-
+          --health-cmd "pg_isready -U missy -d missy_os_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr libpq-dev
+        # tesseract-ocr: the scanned-PDF OCR fallback test actually runs Tesseract.
+        # libpq-dev: psycopg (langgraph's Postgres checkpointer) needs libpq
+        # discoverable via ctypes on Linux - this registers it with ldconfig.
+
+      - name: Install Python dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Cache sentence-transformers model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: huggingface-${{ hashFiles('backend/requirements.txt') }}
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          # Test-only values, never used for anything real - not secrets,
+          # just what Settings() requires to construct without an actual
+          # .env file present. DATABASE_URL isn't set here on purpose:
+          # tests/conftest.py hardcodes it to the service Postgres above
+          # before any app.* module is imported.
+          JWT_SECRET_KEY: ci-test-secret-not-for-production-use
+          FERNET_KEY: qD9HMzQ_YlrM87MWQM5UXOQD8noQw9lxWhidlsIV8zY=
+        run: pytest -q
