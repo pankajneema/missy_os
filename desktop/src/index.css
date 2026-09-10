@@ -1,0 +1,167 @@
+@import "tailwindcss";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---- Design tokens (spec section 5 & 6 - exact palette, do not drift) ---- */
+:root {
+  --radius: 0.5rem;
+
+  /* Palette taken from curiousdevs.com so the app and the site read as one
+     brand: ink text, signal blue, and a warm sand rule instead of a cool
+     grey one - that warmth is what keeps it from feeling clinical. */
+  --color-bg: #fbfaf8;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f6f3ef;
+  --color-border: #e8e1d8;
+  --color-text-primary: #0a1424;
+  --color-text-secondary: #647085;
+  --color-text-muted: #9aa7b5;
+  --color-accent: #2563eb;
+  --color-accent-deep: #1d4ed8;
+  --color-accent-soft: #e7eeff;
+
+  /* Secondary hues, used sparingly to tell sections apart */
+  --color-coral: #e56a4b;
+  --color-coral-soft: #fdeee9;
+  --color-violet: #7c5cd6;
+  --color-violet-soft: #f0ebfc;
+
+  /* Semantic colors - the site's verdict scale */
+  --color-success: #1e9e6a;
+  --color-success-soft: #e6f6ef;
+  --color-warning: #d98b14;
+  --color-warning-soft: #fdf2df;
+  --color-error: #d2483f;
+  --color-error-soft: #fceceb;
+  --color-info: #2563eb;
+  --color-info-soft: #e7eeff;
+
+  /* shadcn/ui primitive mapping - Button/Dialog/Input/etc. read these */
+  --background: var(--color-bg);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-surface-subtle);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-surface-subtle);
+  --muted-foreground: var(--color-text-secondary);
+  --accent: var(--color-accent-soft);
+  --accent-foreground: var(--color-accent);
+  --destructive: var(--color-error);
+  --destructive-foreground: #ffffff;
+  --border: var(--color-border);
+  --input: var(--color-border);
+  --ring: var(--color-accent);
+
+  --sidebar: var(--color-surface);
+  --sidebar-foreground: var(--color-text-primary);
+  --sidebar-primary: var(--color-accent);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--color-accent-soft);
+  --sidebar-accent-foreground: var(--color-accent);
+  --sidebar-border: var(--color-border);
+  --sidebar-ring: var(--color-accent);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Direct access to the raw palette for cases the shadcn mapping doesn't cover */
+  --color-surface: var(--color-surface);
+  --color-surface-subtle: var(--color-surface-subtle);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-accent-deep: var(--color-accent-deep);
+  --color-coral: var(--color-coral);
+  --color-coral-soft: var(--color-coral-soft);
+  --color-violet: var(--color-violet);
+  --color-violet-soft: var(--color-violet-soft);
+  --color-success: var(--color-success);
+  --color-success-soft: var(--color-success-soft);
+  --color-warning: var(--color-warning);
+  --color-warning-soft: var(--color-warning-soft);
+  --color-error: var(--color-error);
+  --color-error-soft: var(--color-error-soft);
+  --color-info: var(--color-info);
+  --color-info-soft: var(--color-info-soft);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  ::selection {
+    background-color: var(--color-accent-soft);
+  }
+
+  /* Thin, unobtrusive scrollbars - a desktop app detail, not a website one */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-text-muted);
+    background-clip: content-box;
+  }
+}

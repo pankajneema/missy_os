@@ -10,3 +10,9 @@ __pycache__/
 
 # Postgres data volume is managed by docker, never committed
 pgdata/
+
+# Local MCP server dependencies - reinstall with `npm install` in each folder.
+# The browser one also pulls a Chromium build (~150MB) via `npm run install-browser`.
+mcp-servers/browser/node_modules/*
+mcp-servers/computer/node_modules/*
+mcp-servers/whatsapp/node_modules/*

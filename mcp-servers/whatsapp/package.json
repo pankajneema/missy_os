@@ -1,0 +1,19 @@
+{
+  "name": "missy-whatsapp-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server that lets Missy read and reply to WhatsApp, limited to the contacts and rules set in the app.",
+  "bin": { "missy-whatsapp-mcp": "src/index.js" },
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/index.js && node src/policy.test.js",
+    "pair": "node src/pair.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "whatsapp-web.js": "^1.26.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

@@ -25,7 +25,13 @@ def create_task(
     db: Session = Depends(get_db),
 ) -> ScheduledTaskResponse:
     task = scheduled_task_service.create_task(
-        db, current_user.id, payload.prompt, payload.schedule_type, payload.run_at_time, payload.interval_hours
+        db,
+        current_user.id,
+        payload.prompt,
+        payload.schedule_type,
+        payload.run_at_time,
+        payload.interval_hours,
+        payload.interval_minutes,
     )
     return ScheduledTaskResponse.model_validate(task)
 

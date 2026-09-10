@@ -40,6 +40,7 @@ def create(
     run_at_time: time | None,
     interval_hours: int | None,
     next_run_at: datetime,
+    interval_minutes: int | None = None,
 ) -> ScheduledTask:
     task = ScheduledTask(
         user_id=user_id,
@@ -47,6 +48,7 @@ def create(
         schedule_type=schedule_type,
         run_at_time=run_at_time,
         interval_hours=interval_hours,
+        interval_minutes=interval_minutes,
         next_run_at=next_run_at,
     )
     db.add(task)

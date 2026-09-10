@@ -11,7 +11,7 @@ from app.db.base_class import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 class ScheduleType(str, enum.Enum):
     daily = "daily"  # runs once a day at run_at_time (UTC)
-    interval = "interval"  # runs every interval_hours
+    interval = "interval"  # runs every interval_minutes (or interval_hours)
 
 
 class ScheduledTask(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -32,8 +32,11 @@ class ScheduledTask(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     # daily only
     run_at_time: Mapped[time | None] = mapped_column(Time, nullable=True)
-    # interval only
+    # interval only - a task carries one of these, not both. interval_minutes
+    # came later so that a job can run more often than hourly; the scheduler
+    # loop already ticks every 60 seconds, so nothing else had to change.
     interval_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

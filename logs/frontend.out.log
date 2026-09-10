@@ -1,0 +1,37 @@
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8501
+  Network URL: http://192.168.0.104:8501
+  External URL: http://223.190.80.36:8501
+
+  For better performance, install the Watchdog module:
+
+  $ xcode-select --install
+  $ pip install watchdog
+            
+  Stopping...
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8501
+  Network URL: http://192.168.0.104:8501
+  External URL: http://223.190.80.36:8501
+
+  For better performance, install the Watchdog module:
+
+  $ xcode-select --install
+  $ pip install watchdog
+            
+  Stopping...
+
+  You can now view your Streamlit app in your browser.
+
+  URL: http://127.0.0.1:8501
+
+  For better performance, install the Watchdog module:
+
+  $ xcode-select --install
+  $ pip install watchdog
+            
+  Stopping...

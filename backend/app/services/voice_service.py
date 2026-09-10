@@ -7,7 +7,7 @@ from app.ai.speech import synthesize_speech
 from app.ai.transcription import transcribe_audio
 from app.core.encryption import decrypt_secret
 from app.models.llm_credential import LLMProvider
-from app.repositories import credential_repo
+from app.repositories import credential_repo, profile_repo
 
 
 def transcribe(db: Session, user_id: uuid.UUID, filename: str, audio_bytes: bytes) -> str:
@@ -19,7 +19,8 @@ def transcribe(db: Session, user_id: uuid.UUID, filename: str, audio_bytes: byte
         )
     api_key = decrypt_secret(credential.encrypted_api_key)
     try:
-        return transcribe_audio(api_key, filename, audio_bytes)
+        profile = profile_repo.get_by_user_id(db, user_id)
+        return transcribe_audio(api_key, filename, audio_bytes, profile.response_language if profile else None)
     except Exception as exc:  # noqa: BLE001 - surface a clean error, not a raw traceback
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Transcription failed: {exc}") from exc
 

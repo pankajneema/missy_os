@@ -33,6 +33,27 @@ _CONFIDENTIALITY_POLICY = (
 )
 
 
+def _language_rule(language: str) -> str:
+    """"Hinglish" is the case that goes wrong on its own: models read it as
+    "Hindi" and answer in Devanagari, which is not what anyone asking for
+    Hinglish wants. Spell out the script, and pin one language per reply so
+    answers stop drifting between Hindi, Urdu and English mid-conversation."""
+    normalised = language.strip().lower()
+    if normalised == "hinglish":
+        return (
+            "Reply in Hinglish: conversational Hindi-English mixed, written in the Latin/roman "
+            "alphabet (like 'aaj ke tasks ye hain'). Never reply in Devanagari or Urdu script.\n"
+            "Use this same language for the whole reply - do not switch scripts or languages "
+            "part-way through, unless the user explicitly asks you to."
+        )
+    return (
+        f"Always respond in {language}, regardless of what language the user writes in, "
+        "unless they explicitly ask you to switch languages.\n"
+        "Use that one language for the whole reply - do not drift into another language or script "
+        "part-way through."
+    )
+
+
 def build_system_prompt(profile: AssistantProfile) -> str:
     tone_line = f"\nPreferred tone: {profile.tone_preference}." if profile.tone_preference else ""
     return (
@@ -40,11 +61,16 @@ def build_system_prompt(profile: AssistantProfile) -> str:
         f"About the user you are helping: {profile.user_about_me}\n"
         f"How you should behave and what you're expected to help with: {profile.persona_description}"
         f"{tone_line}\n"
-        f"Always respond in {profile.response_language}, regardless of what language the user writes in, "
-        "unless they explicitly ask you to switch languages.\n"
+        f"{_language_rule(profile.response_language)}\n"
         "Be direct, helpful, and stay in character as the assistant described above.\n"
         "If the context provided to you doesn't contain enough information to answer confidently, "
-        "say so plainly rather than guessing or making something up.\n\n"
+        "say so plainly rather than guessing or making something up.\n"
+        "Never invent the user's tasks, meetings or plans. If their current tasks or schedule are "
+        "given to you below, answer from those. If they are not, say you can't see them and ask for "
+        "the specific detail you need - what the task is, when it's due, and if it's a meeting, who "
+        "it's with and whether it's in person or online. Ask a couple of short questions rather than "
+        "printing a blank template for them to fill in.\n"
+        "Keep spoken-style answers short. Don't use tables or long markdown unless asked.\n\n"
         f"{_UNTRUSTED_CONTENT_POLICY}\n\n"
         f"{_CONFIDENTIALITY_POLICY}"
     )

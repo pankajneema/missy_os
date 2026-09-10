@@ -25,14 +25,19 @@ _RECURSION_LIMIT = 30
 
 
 def _compute_next_run_at(
-    schedule_type: ScheduleType, run_at_time: time | None, interval_hours: int | None, now: datetime
+    schedule_type: ScheduleType,
+    run_at_time: time | None,
+    interval_hours: int | None,
+    now: datetime,
+    interval_minutes: int | None = None,
 ) -> datetime:
     """Always anchored from `now`, not from the previous next_run_at - if the
     app was down for a stretch (has happened - see the Docker incident),
     this gives one catch-up run next tick instead of a burst of missed runs
     firing back-to-back."""
     if schedule_type == ScheduleType.interval:
-        return now + timedelta(hours=interval_hours)
+        minutes = interval_minutes if interval_minutes else (interval_hours or 0) * 60
+        return now + timedelta(minutes=minutes)
     candidate = now.replace(hour=run_at_time.hour, minute=run_at_time.minute, second=0, microsecond=0)
     if candidate <= now:
         candidate += timedelta(days=1)
@@ -50,15 +55,20 @@ def create_task(
     schedule_type: ScheduleType,
     run_at_time: time | None = None,
     interval_hours: int | None = None,
+    interval_minutes: int | None = None,
 ) -> ScheduledTask:
     if schedule_type == ScheduleType.daily and run_at_time is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A daily task needs a time of day.")
-    if schedule_type == ScheduleType.interval and not interval_hours:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="An interval task needs an hour count.")
+    if schedule_type == ScheduleType.interval and not (interval_hours or interval_minutes):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="An interval task needs an interval."
+        )
 
     now = datetime.now(timezone.utc)
-    next_run_at = _compute_next_run_at(schedule_type, run_at_time, interval_hours, now)
-    return scheduled_task_repo.create(db, user_id, prompt, schedule_type, run_at_time, interval_hours, next_run_at)
+    next_run_at = _compute_next_run_at(schedule_type, run_at_time, interval_hours, now, interval_minutes)
+    return scheduled_task_repo.create(
+        db, user_id, prompt, schedule_type, run_at_time, interval_hours, next_run_at, interval_minutes
+    )
 
 
 def set_enabled(db: Session, user_id: uuid.UUID, task_id: uuid.UUID, enabled: bool) -> ScheduledTask:
@@ -141,7 +151,11 @@ async def run_due_tasks(session_factory: sessionmaker) -> int:
                 continue
             await _run_one_task(db, task)
             next_run_at = _compute_next_run_at(
-                task.schedule_type, task.run_at_time, task.interval_hours, datetime.now(timezone.utc)
+                task.schedule_type,
+                task.run_at_time,
+                task.interval_hours,
+                datetime.now(timezone.utc),
+                task.interval_minutes,
             )
             scheduled_task_repo.record_run(db, task, datetime.now(timezone.utc), next_run_at)
         finally:

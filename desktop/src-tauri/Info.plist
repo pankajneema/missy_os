@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged into the generated macOS bundle by Tauri.
+
+  NSMicrophoneUsageDescription is not optional: macOS refuses microphone
+  access outright when it's absent, and the app never even shows up in
+  System Settings > Privacy & Security > Microphone, so there's nothing for
+  the user to switch on. That's what made voice look like "the mic is busy".
+-->
+<plist version="1.0">
+  <dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Missy uses the microphone so you can talk to her instead of typing. Audio is sent to your own configured speech-to-text provider and is not stored by the app.</string>
+  </dict>
+</plist>

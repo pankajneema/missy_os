@@ -1,0 +1,7 @@
+# Paths here are relative to this folder, so they must NOT be prefixed with
+# "mcp-servers/" - that would look for mcp-servers/mcp-servers/... and match
+# nothing, which is what this file used to do.
+#
+# The root .gitignore covers these too; this is kept so the rule survives if
+# these servers are ever moved or split out on their own.
+*/node_modules/
